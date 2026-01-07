@@ -12,6 +12,9 @@
 name: Auto-unassign Stale Issues
 
 on:
+  push:
+    branches:
+      - feature-stale-issue-unassign
   workflow_dispatch:
     # Manual trigger for testing
     inputs:
