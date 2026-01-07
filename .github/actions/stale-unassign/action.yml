@@ -3,10 +3,10 @@ description: 'Automatically unassigns stale issues after a grace period'
 author: 'PalisadoesFoundation'
 
 inputs:
-  grace-period-days:
-    description: 'Days after label application before unassignment'
+  grace-period-minutes:
+    description: 'Minutes after label application before unassignment'
     required: false
-    default: '1'
+    default: '2'
   dry-run:
     description: 'Run without making changes. Logs intended actions.'
     required: false
@@ -35,7 +35,7 @@ runs:
     - name: Unassign stale issues
       uses: actions/github-script@v7
       env:
-        GRACE_PERIOD_DAYS: ${{ inputs.grace-period-days }}
+        GRACE_PERIOD_MINUTES: ${{ inputs.grace-period-minutes }}
         STALE_LABEL: ${{ inputs.stale-label }}
         COMMENT_TEMPLATE: ${{ inputs.comment-message }}
         MAX_ISSUES_PER_RUN: ${{ inputs.max-issues-per-run }}
@@ -44,7 +44,7 @@ runs:
         github-token: ${{ inputs.github-token }}
         script: |
           // Read inputs from environment variables to prevent script injection
-          const DEFAULT_GRACE_PERIOD = 1;
+          const DEFAULT_GRACE_PERIOD_MINUTES = 2;
           const DEFAULT_MAX_ISSUES = 50;
 
           // Helper function for retrying API calls with exponential backoff
@@ -77,10 +77,10 @@ runs:
             }
           }
 
-          let gracePeriodDays = parseInt(process.env.GRACE_PERIOD_DAYS, 10);
-          if (!Number.isFinite(gracePeriodDays) || gracePeriodDays < 0) {
-            console.warn(`Invalid grace period "${process.env.GRACE_PERIOD_DAYS}", using default: ${DEFAULT_GRACE_PERIOD}`);
-            gracePeriodDays = DEFAULT_GRACE_PERIOD;
+          let gracePeriodMinutes = parseInt(process.env.GRACE_PERIOD_MINUTES, 10);
+          if (!Number.isFinite(gracePeriodMinutes) || gracePeriodMinutes < 0) {
+            console.warn(`Invalid grace period "${process.env.GRACE_PERIOD_MINUTES}", using default: ${DEFAULT_GRACE_PERIOD_MINUTES}`);
+            gracePeriodMinutes = DEFAULT_GRACE_PERIOD_MINUTES;
           }
 
           const staleLabel = process.env.STALE_LABEL;
@@ -104,7 +104,7 @@ runs:
             console.warn('Warning: comment-message does not contain {assignee} placeholder. Unassigned users will not be mentioned.');
           }
 
-          console.log(`Configuration: grace-period=${gracePeriodDays} days, stale-label="${staleLabel}", max-issues=${maxIssuesPerRun || 'unlimited'}, dry-run=${dryRun}`);
+          console.log(`Configuration: grace-period=${gracePeriodMinutes} minutes, stale-label="${staleLabel}", max-issues=${maxIssuesPerRun || 'unlimited'}, dry-run=${dryRun}`);
 
           // Check if repository is archived
           const { data: repo } = await retry(() => github.rest.repos.get({
@@ -240,15 +240,15 @@ runs:
               const latestLabelEvent = labelEvents[labelEvents.length - 1];
               const labelAddedDate = new Date(latestLabelEvent.created_at);
               const now = new Date();
-              const daysSinceLabel = (now - labelAddedDate) / (1000 * 60 * 60 * 24);
+              const minutesSinceLabel = (now - labelAddedDate) / (1000 * 60);
 
-              if (daysSinceLabel < gracePeriodDays) {
-                console.log(`Issue #${issue.number}: Grace period not exceeded (${daysSinceLabel.toFixed(1)}/${gracePeriodDays} days), skipping`);
+              if (minutesSinceLabel < gracePeriodMinutes) {
+                console.log(`Issue #${issue.number}: Grace period not exceeded (${minutesSinceLabel.toFixed(1)}/${gracePeriodMinutes} minutes), skipping`);
                 skippedCount++;
                 continue;
               }
 
-              console.log(`Issue #${issue.number}: Grace period exceeded (${daysSinceLabel.toFixed(1)} days). Processing ${assigneeCount} assignee(s)...`);
+              console.log(`Issue #${issue.number}: Grace period exceeded (${minutesSinceLabel.toFixed(1)} minutes). Processing ${assigneeCount} assignee(s)...`);
 
               // Collect all assignee logins
               const assigneeLogins = issue.assignees.map(a => a.login);
